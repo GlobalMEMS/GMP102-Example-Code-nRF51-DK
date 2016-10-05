@@ -6,9 +6,9 @@
  *
  * File : gmp102.c
  *
- * Date : 2016/09/22
+ * Date : 2016/10/05
  *
- * Usage: GMP102 sensor driver file
+ * Usage: GMP102 sensor driver header file
  *
  ****************************************************************************
  * 
@@ -45,14 +45,14 @@ bus_support_t* pGMP102Bus = 0;
  
 static const float GMP102_CALIB_SCALE_FACTOR[] = {
   1.0E+00,
-  1.0E-03,
-  1.0E-07,
-  1.0E-04,
-  1.0E-08,
-  1.0E-12,
+  1.0E-05,
   1.0E-10,
-  1.0E-14,
-  1.0E-18 };
+  1.0E-05,
+  1.0E-10,
+  1.0E-15,
+  1.0E-12,
+  1.0E-17,
+  1.0E-21 };
  
 /*!
  * @brief Read multiple data from the starting regsiter address
