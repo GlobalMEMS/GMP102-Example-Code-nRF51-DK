@@ -32,6 +32,7 @@ C_SOURCE_FILES += \
 	./m_app_twi.c \
 	./bus_support.c \
 	./gmp102.c \
+	./pSensor_util.c \
 	./sensor_driver_test.c
 
 #

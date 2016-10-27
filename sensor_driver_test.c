@@ -44,6 +44,7 @@
 #include "bsp.h"
 #include "gmp102.h"
 #include "app_twi.h"
+#include "pSensor_util.h"
 
 #define UART_TX_BUF_SIZE            256                  // UART TX buffer size
 #define UART_RX_BUF_SIZE            1                    // UART RX buffer size
@@ -144,7 +145,7 @@ int main(void)
 
   s8 s8Res; 
   bus_support_t gmp102_bus;
-  float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fT_Celsius, fP_Pa;
+  float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fT_Celsius, fP_Pa, fAlt_m;
   s16 s16T;
   s32 s32P;
 
@@ -173,6 +174,10 @@ int main(void)
   /* GMP102 initialization setup */
   s8Res = gmp102_initialization();
 
+  /* set sea leve reference pressure */
+  //If not set, use default 101325 Pa for pressure altitude calculation
+  set_sea_level_pressure_base(100450.f);
+
   for(;;)
     {
       /* Measure P */
@@ -187,6 +192,10 @@ int main(void)
       gmp102_compensation(s16T, s32P, fCalibParam, &fT_Celsius, &fP_Pa);
       printf("P(Pa)=%d\r", (s32)fP_Pa);
       printf("100*T(C)=%d\r", (s32)(fT_Celsius*100));
+
+      /* Pressure Altitude */
+      fAlt_m = pressure2Alt(fP_Pa);
+      printf("Alt(cm)=%d\r", (s32)(fAlt_m*100));
 
       printf("\n");
       /* Delay 1 sec */
