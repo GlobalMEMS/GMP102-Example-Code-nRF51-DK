@@ -298,19 +298,6 @@ s8 gmp102_measure_T(s16* ps16T){
   return comRslt;
 }
 
-
-/*!
- * @brief gmp102 measure temperature
- *
- * @param *ps16T calibrated temperature code returned to caller
- * 
- * @return Result from bus communication function
- * @retval -1 Bus communication error
- * @retval -127 Error null bus
- *
- */
-s8 gmp102_measure_T(s16* ps16T);
-
 /*!
  * @brief gmp102 measure pressure
  *
@@ -381,6 +368,144 @@ s8 gmp102_measure_P(s32* ps32P){
 }
 
 /*!
+ * @brief gmp102 measure pressure and temperature
+ *        Read pressure first then commit pressure data conversion for the next call
+ *        
+ * @param *ps32P raw pressure in code returned to caller
+ * @param *ps16T calibrated temperature code returned to caller
+ * @param s8WaitPDrdy 1: P wait for DRDY bit set, 0: P no wait
+ *
+ * 
+ * @return Result from bus communication function
+ * @retval -1 Bus communication error
+ * @retval -127 Error null bus
+ *
+ */
+s8 gmp102_measure_P_T(s32* ps32P, s16* ps16T, s8 s8PWaitDrdy){
+
+  s8 comRslt = 0, s8Tmp;
+  u8 u8Data[3];
+	
+  /*
+   *
+   * Read raw P code
+   *
+   */
+  if(s8PWaitDrdy){
+    // Wait for 02h[0] DRDY bit set if s8PWaitDrdy is 1
+    do{
+
+      //wait a while
+      WAIT_FOR_DRDY_LOOP_DELAY(1000)
+		
+      s8Tmp = gmp102_burst_read(GMP102_REG_STATUS, u8Data, 1);
+
+      if(s8Tmp < 0){ //communication error
+	comRslt = s8Tmp;
+	goto EXIT;
+      }
+      comRslt += s8Tmp;		
+		
+    } while( GMP102_GET_BITSLICE(u8Data[0], GMP102_DRDY) != 1);
+  }
+	
+  // Read 06h~08h
+  s8Tmp = gmp102_burst_read(GMP102_REG_PRESSH, u8Data, 3);
+
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;	
+	
+  s8Tmp = sizeof(*ps32P)*8 - 24;
+  // Get the raw pressure in code
+  *ps32P = (u8Data[0] << 16) + (u8Data[1] << 8) + u8Data[2];
+  *ps32P = (*ps32P << s8Tmp) >> s8Tmp; //24 bit sign extension
+	
+  /*
+   *
+   * Measure calibrated T code
+   *
+   */
+  // Set A5h = 0x00, Calibrated data out
+  u8Data[0] = 0x00;
+  s8Tmp = gmp102_burst_write(GMP102_REG_CONFIG1, u8Data, 1);
+	
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;
+	
+  // Set 30h = 0x08, T-Forced mode
+  u8Data[0] = 0x08;
+  s8Tmp = gmp102_burst_write(GMP102_REG_CMD, u8Data, 1);
+
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;
+	
+  // Wait for 02h[0] DRDY bit set
+  do{
+
+    //wait a while
+    WAIT_FOR_DRDY_LOOP_DELAY(1000)
+		
+      s8Tmp = gmp102_burst_read(GMP102_REG_STATUS, u8Data, 1);
+
+    if(s8Tmp < 0){ //communication error
+      comRslt = s8Tmp;
+      goto EXIT;
+    }
+    comRslt += s8Tmp;		
+		
+  } while( GMP102_GET_BITSLICE(u8Data[0], GMP102_DRDY) != 1);
+	
+  // Read 09h~0Ah
+  s8Tmp = gmp102_burst_read(GMP102_REG_TEMPH, u8Data, 2);
+
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;	
+	
+  // Get the calibrated temperature in code
+  *ps16T = (u8Data[0] << 8) + u8Data[1];
+	
+  /*
+   *
+   * Commit the next pressure conversion
+   *
+   */
+  // Set A5h = 0x02, raw data out
+  u8Data[0] = 0x02;
+  s8Tmp = gmp102_burst_write(GMP102_REG_CONFIG1, u8Data, 1);
+	
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;
+	
+  // Set 30h = 0x09, P-Forced mode
+  u8Data[0] = 0x09;
+  s8Tmp = gmp102_burst_write(GMP102_REG_CMD, u8Data, 1);
+
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;
+	
+ EXIT:
+  return comRslt;
+}
+
+/*!
  * @brief gmp102 temperature and pressure compensation
  *
  * @param s16T calibrated temperature in code
@@ -436,6 +561,45 @@ s8 gmp102_set_P_OSR(GMP102_P_OSR_Type osrP){
   //Set the A6h[2:0] OSR bits
   u8Data = GMP102_SET_BITSLICE(u8Data, GMP102_P_OSR, osrP);
   s8Tmp = gmp102_burst_write(GMP102_REG_CONFIG2, &u8Data, 1);
+	
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;
+	
+ EXIT:
+  return comRslt;
+}
+
+
+/*!
+ * @brief gmp102 set temperature OSR
+ *
+ * @param osrT OSR to set
+ * 
+ * @return Result from bus communication function
+ * @retval -1 Bus communication error
+ * @retval -127 Error null bus
+ *
+ */
+s8 gmp102_set_T_OSR(GMP102_T_OSR_Type osrT){
+	
+  s8 comRslt = 0, s8Tmp;
+  u8 u8Data;
+	
+  //Read A7h
+  s8Tmp = gmp102_burst_read(GMP102_REG_CONFIG3, &u8Data, 1);
+	
+  if(s8Tmp < 0){ //communication error
+    comRslt = s8Tmp;
+    goto EXIT;
+  }
+  comRslt += s8Tmp;	
+
+  //Set the A7h[2:0] OSR bits
+  u8Data = GMP102_SET_BITSLICE(u8Data, GMP102_T_OSR, osrT);
+  s8Tmp = gmp102_burst_write(GMP102_REG_CONFIG3, &u8Data, 1);
 	
   if(s8Tmp < 0){ //communication error
     comRslt = s8Tmp;
