@@ -174,6 +174,9 @@ int main(void)
   /* GMP102 initialization setup */
   s8Res = gmp102_initialization();
 
+  /* GMP102 set P OSR to 1024 */
+  s8Res = gmp102_set_P_OSR(GMP102_P_OSR_1024);
+
   /* set sea leve reference pressure */
   //If not set, use default 101325 Pa for pressure altitude calculation
   set_sea_level_pressure_base(100450.f);
