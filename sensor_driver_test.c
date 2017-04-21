@@ -38,6 +38,8 @@
 #include "nrf_drv_clock.h"
 #include "nrf_delay.h"
 #include "app_error.h"
+#include "app_timer.h"
+#include "nrf_drv_timer.h"
 #include "app_uart.h"
 #include "boards.h"
 #include "nrf.h"
@@ -48,10 +50,28 @@
 
 #define UART_TX_BUF_SIZE            256                  // UART TX buffer size
 #define UART_RX_BUF_SIZE            1                    // UART RX buffer size
+#define TIMER_GET_DATA_TICK_MS      10                   // Data rate 100Hz
 #define MAX_PENDING_TRANSACTIONS    5                    // TWI (I2C)
 #define DELAY_MS(ms)	            nrf_delay_ms(ms)
 
+const nrf_drv_timer_t m_timer_get_data = NRF_DRV_TIMER_INSTANCE(1);
 static app_twi_t m_app_twi = APP_TWI_INSTANCE(0);
+int8_t s8ReadData = 0;
+
+static void event_handler_timer_get_data(nrf_timer_event_t event_type, void* p_context)
+{
+   
+  switch(event_type)
+    {
+    case NRF_TIMER_EVENT_COMPARE0:
+      s8ReadData = 1;
+      break;
+        
+    default:
+      //Do nothing.
+      break;
+    }    
+}
 
 static void event_handler_uart(app_uart_evt_t * p_event){
 
@@ -118,6 +138,36 @@ void init_uart(void)
   APP_ERROR_CHECK(err_code);
 }
 
+/*
+  Configure the timer for periodic data read
+*/
+void init_timer_get_data(void){
+
+  uint32_t time_ticks;
+  uint32_t err_code = NRF_SUCCESS;
+  nrf_drv_timer_config_t m_nrf_timer_config = {
+    .frequency = TIMER1_CONFIG_FREQUENCY,
+    .mode = TIMER1_CONFIG_MODE,
+    .bit_width = TIMER1_CONFIG_BIT_WIDTH,
+    .interrupt_priority = TIMER1_CONFIG_IRQ_PRIORITY,
+    .p_context = NULL  //no user data
+  };
+    
+  err_code = nrf_drv_timer_init(&m_timer_get_data, &m_nrf_timer_config, event_handler_timer_get_data);
+  APP_ERROR_CHECK(err_code);
+    
+  time_ticks = nrf_drv_timer_ms_to_ticks(&m_timer_get_data, TIMER_GET_DATA_TICK_MS);
+    
+  nrf_drv_timer_extended_compare(&m_timer_get_data,
+				 NRF_TIMER_CC_CHANNEL0,
+				 time_ticks,
+				 NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK,
+				 true);
+    
+  nrf_drv_timer_enable(&m_timer_get_data);
+
+}
+
 /**
  * Initialize two wire interface (I2C)
  */
@@ -155,6 +205,9 @@ int main(void)
   //Config. and initialize UART
   init_uart();
 
+  //Config. and initialize the periodic data read timer
+  init_timer_get_data();
+
   //Config. and initialize TWI (I2C)
   init_twi(NRF_TWI_FREQ_400K);
 	
@@ -174,21 +227,25 @@ int main(void)
   /* GMP102 initialization setup */
   s8Res = gmp102_initialization();
 
-  /* GMP102 set P OSR to 1024 */
-  s8Res = gmp102_set_P_OSR(GMP102_P_OSR_1024);
+  /* GMP102 set P OSR to 4096 */
+  s8Res = gmp102_set_P_OSR(GMP102_P_OSR_4096);
+
+  /* First call without wait for P DRDY */
+  s8Res = gmp102_measure_P_T(&s32P, &s16T, 0);
 
   /* set sea leve reference pressure */
   //If not set, use default 101325 Pa for pressure altitude calculation
   set_sea_level_pressure_base(100450.f);
 
-  for(;;)
-    {
-      /* Measure P */
-      s8Res = gmp102_measure_P(&s32P);
-      printf("P(code)=%d\r", s32P);
-		
-      /* Mesaure T */
-      s8Res = gmp102_measure_T(&s16T);
+  for(;;){
+
+    if(s8ReadData){
+      
+      s8ReadData = 0;
+
+      /* Measure P & T*/
+      s8Res = gmp102_measure_P_T(&s32P, &s16T, 1); //Subsequent call with wait for P DRDY
+      printf("P(code)=%d\r", s32P);		
       printf("T(code)=%d\r", s16T);
 		
       /* Compensation */
@@ -201,7 +258,12 @@ int main(void)
       printf("Alt(cm)=%d\r", (s32)(fAlt_m*100));
 
       printf("\n");
-      /* Delay 1 sec */
-      DELAY_MS(1000);
+
     }
+    else{
+
+      __WFI();
+
+    }
+  }
 }
