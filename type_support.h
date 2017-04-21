@@ -6,8 +6,7 @@
  *
  * File : type_support.h
  *
- * Date : 2016/09/22
- *
+ * Date : 2016/09/23
  *
  * Usage: Define various support type
  *
@@ -56,5 +55,17 @@ typedef union {
   } u;
   s32 v[4];
 } raw_data_xyzt_t;
+
+typedef union {
+  struct{
+    float x;
+    float y;
+    float z;
+    float t;
+  } u;
+  float v[4];
+} float_xyzt_t;
+
+typedef enum {X_AXIS = 1, Y_AXIS = 2, Z_AXIS = 4} m_axis_t;
 
 #endif //__TYPE_SUPPORT_H__
