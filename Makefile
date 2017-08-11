@@ -33,6 +33,7 @@ C_SOURCE_FILES += \
 	./bus_support.c \
 	./gmp102.c \
 	./pSensor_util.c \
+	./iir_filter.c \
 	./sensor_driver_test.c
 
 #

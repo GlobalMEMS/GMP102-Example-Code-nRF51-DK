@@ -47,12 +47,16 @@
 #include "gmp102.h"
 #include "app_twi.h"
 #include "pSensor_util.h"
+#include "iir_filter.h"
 
 #define UART_TX_BUF_SIZE            256                  // UART TX buffer size
 #define UART_RX_BUF_SIZE            1                    // UART RX buffer size
 #define TIMER_GET_DATA_TICK_MS      10                   // Data rate 100Hz
 #define MAX_PENDING_TRANSACTIONS    5                    // TWI (I2C)
 #define DELAY_MS(ms)	            nrf_delay_ms(ms)
+#define IIR_P_LP_ORDER              (16)                 //Pressure low-pass filter order
+#define alpha_P                     (1.0f/IIR_P_LP_ORDER)
+#define DOF_P                       (1)
 
 const nrf_drv_timer_t m_timer_get_data = NRF_DRV_TIMER_INSTANCE(1);
 static app_twi_t m_app_twi = APP_TWI_INSTANCE(0);
@@ -198,6 +202,20 @@ int main(void)
   float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fT_Celsius, fP_Pa, fAlt_m;
   s16 s16T;
   s32 s32P;
+  //pressure low pass filter
+  float fP_Pa_lp;
+  float histX_P[DOF_P];
+  float histY_P[DOF_P];
+  float coeffA_P[] = {(1.0f - alpha_P)};
+  float coeffB_P[] = {alpha_P};	
+  iir_filter_param_t iir_P;
+  iir_P.dof = DOF_P;
+  iir_P.lenCoeffA = 1;
+  iir_P.lenCoeffB = 1;
+  iir_P.histX = histX_P;
+  iir_P.histY = histY_P;
+  iir_P.coeffA = coeffA_P;
+  iir_P.coeffB = coeffB_P;
 
   //Config and initialize LFCLK
   init_lfclk();
@@ -230,12 +248,19 @@ int main(void)
   /* GMP102 set P OSR to 4096 */
   s8Res = gmp102_set_P_OSR(GMP102_P_OSR_4096);
 
+  /* GMP102 set T OSR to 2048 */
+  s8Res = gmp102_set_T_OSR(GMP102_T_OSR_2048);
+
   /* First call without wait for P DRDY */
   s8Res = gmp102_measure_P_T(&s32P, &s16T, 0);
 
   /* set sea leve reference pressure */
   //If not set, use default 101325 Pa for pressure altitude calculation
   set_sea_level_pressure_base(100450.f);
+
+
+  //Initialize the Pressure low-pass filter
+  iirFilterInit(&iir_P);
 
   for(;;){
 
@@ -253,8 +278,12 @@ int main(void)
       printf("P(Pa)=%d\r", (s32)fP_Pa);
       printf("100*T(C)=%d\r", (s32)(fT_Celsius*100));
 
+      /* Low-pass filtering pressure */
+      filterData((float *)&fP_Pa, (float *)&fP_Pa_lp, &iir_P);
+      printf("P_lp(Pa)=%d\r", (s32)fP_Pa_lp);
+
       /* Pressure Altitude */
-      fAlt_m = pressure2Alt(fP_Pa);
+      fAlt_m = pressure2Alt(fP_Pa_lp);
       printf("Alt(cm)=%d\r", (s32)(fAlt_m*100));
 
       printf("\n");
