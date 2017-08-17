@@ -1,7 +1,7 @@
 /*
  *
  ****************************************************************************
- * Copyright (C) 2016 GlobalMEMS, Inc. <www.globalmems.com>
+ * Copyright (C) 2017 GlobalMEMS, Inc. <www.globalmems.com>
  * All rights reserved.
  *
  * File : iir_filter.h
@@ -30,18 +30,20 @@
 #ifndef __IIR_FILTER_H__
 #define __IIR_FILTER_H__
 
+#include <stdint.h>
+
+//typedef float iirFlt_t;
+typedef double iirFlt_t;
+
 typedef struct{
 
-  int32_t isFirstX;
-  int32_t isFirstY;
-  int32_t dof;
-  int32_t lenCoeffA;
-  int32_t lenCoeffB;
-  float *histX;  //dof*(lenCoeffB-1), {x_n-1, x_n-2, ..., x_n-(lenCoeffB-1)}
-  float *histY;  //dof*lenCoeffA, {y_n-1, y_n-2, ..., y_n-(lenCoeffA)}
-  float *coeffA; //{a1, a2, a3, ..., a(lenCoeffA)}
-  float *coeffB; //{b0, b1, b2, ..., b(lenCoeffB-1)}
-
+  int32_t isFirst;  //filter startup
+  int32_t dof;      //dof of the data vector
+  int32_t order;    //filter order
+  iirFlt_t *histX;  //size of dof*order, {x_n-1, x_n-2, ..., x_n-order}
+  iirFlt_t *histY;  //size of dof*order, {y_n-1, y_n-2, ..., y_n-order)}
+  iirFlt_t *coeffA; //size of order+1, {a0, a1, a2, a3, ..., a(order)}
+  iirFlt_t *coeffB; //size of order+1, {b0, b1, b2, b3, ..., b(order)}
 
 } iir_filter_param_t;
 

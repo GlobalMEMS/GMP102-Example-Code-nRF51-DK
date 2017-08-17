@@ -54,9 +54,15 @@
 #define TIMER_GET_DATA_TICK_MS      10                   // Data rate 100Hz
 #define MAX_PENDING_TRANSACTIONS    5                    // TWI (I2C)
 #define DELAY_MS(ms)	            nrf_delay_ms(ms)
-#define IIR_P_LP_ORDER              (16)                 //Pressure low-pass filter order
+#define IIR_P_LP_ORDER              (14)                 //Pressure low-pass filter order
 #define alpha_P                     (1.0f/IIR_P_LP_ORDER)
 #define DOF_P                       (1)
+//Select IIR filter order below
+#define IIR_ORDER           (1)
+//#define IIR_ORDER           (2)
+//#define IIR_ORDER           (3)
+//#define IIR_ORDER           (4)
+//#define IIR_ORDER           (5)
 
 const nrf_drv_timer_t m_timer_get_data = NRF_DRV_TIMER_INSTANCE(1);
 static app_twi_t m_app_twi = APP_TWI_INSTANCE(0);
@@ -204,14 +210,27 @@ int main(void)
   s32 s32P;
   //pressure low pass filter
   float fP_Pa_lp;
-  float histX_P[DOF_P];
-  float histY_P[DOF_P];
-  float coeffA_P[] = {(1.0f - alpha_P)};
-  float coeffB_P[] = {alpha_P};	
-  iir_filter_param_t iir_P;
+  iirFlt_t histX_P[IIR_ORDER*DOF_P];
+  iirFlt_t histY_P[IIR_ORDER*DOF_P];
+#if IIR_ORDER == 1
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1.0, alpha_P - 1.0};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {alpha_P, 0.0};
+#elif IIR_ORDER == 2
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -1.89550185, 0.90069709};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {0.00129881, 0.00259762, 0.00129881};
+#elif IIR_ORDER == 3
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -2.85212611, 2.71498408, -0.86248184};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {4.70174477e-05, 1.41052343e-04, 1.41052343e-04, 4.70174477e-05};	
+#elif IIR_ORDER == 4
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -3.80677094, 5.43876296, -3.45619783, 0.82423302};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {1.70034519e-06, 6.80138078e-06, 1.02020712e-05, 6.80138078e-06, 1.70034519e-06};
+#elif IIR_ORDER == 5
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -4.76069662, 9.07116978, -8.64727116, 4.12391041, -0.78711044};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {6.14692560e-08, 3.07346280e-07, 6.14692560e-07, 6.14692560e-07, 3.07346280e-07, 6.14692560e-08};	
+#endif
+  iir_filter_param_t iir_P;	
   iir_P.dof = DOF_P;
-  iir_P.lenCoeffA = 1;
-  iir_P.lenCoeffB = 1;
+  iir_P.order = IIR_ORDER;
   iir_P.histX = histX_P;
   iir_P.histY = histY_P;
   iir_P.coeffA = coeffA_P;

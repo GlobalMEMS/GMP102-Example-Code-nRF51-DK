@@ -1,7 +1,7 @@
 /*
  *
  ****************************************************************************
- * Copyright (C) 2016 GlobalMEMS, Inc. <www.globalmems.com>
+ * Copyright (C) 2017 GlobalMEMS, Inc. <www.globalmems.com>
  * All rights reserved.
  *
  * File : iir_filter.h
@@ -27,7 +27,6 @@
  *
  **************************************************************************/
 
-#include <stdint.h>
 #include "iir_filter.h"
 
 /*!
@@ -42,15 +41,13 @@ void iirFilterInit(iir_filter_param_t *pParam)
 
   int32_t i;
 
-  pParam->isFirstY = pParam->lenCoeffA;
-  pParam->isFirstX = pParam->lenCoeffB - 1;
+  pParam->isFirst = 1;
 
   //Initialize the history
-  for(i = 0; i < pParam->dof * (pParam->lenCoeffB - 1); ++i)
+  for(i = 0; i < (pParam->dof)*(pParam->order); ++i){
     pParam->histX[i] = 0.0;
-
-  for(i = 0; i < pParam->dof * pParam->lenCoeffA; ++i)
-    pParam->histY[i] = 0.0;
+		pParam->histY[i] = 0.0;
+	}
 }
 
 /*!
@@ -66,53 +63,57 @@ void filterData(float *X_n, float *Y_n, iir_filter_param_t *pParam)
 {
 
   int32_t i, j;
-  int32_t lenA = pParam->lenCoeffA;
-  int32_t lenB = pParam->lenCoeffB;
-  int32_t colhY = lenA;
-  int32_t colhX = lenB - 1;
-
-  //Initialize the first colhX datas to histX
-  if(pParam->isFirstX > 0){
-
-    for(i = 0; i < pParam->dof; ++i)
-      pParam->histX[i * colhX] = X_n[i];
-
-    pParam->isFirstX -= 1;
-  }
-
-  //Initialize the first colhY datas to histY
-  if(pParam->isFirstY > 0){
-
-    for(i = 0; i < pParam->dof; ++i)
-      pParam->histY[i * colhY] = X_n[i];
-
-    pParam->isFirstY -= 1;
-  }
+  int32_t i_histXY;
+  int32_t lenAB = pParam->order + 1;
+  int32_t colhXY = pParam->order;
+	iirFlt_t iirX, iirY;
+	
+	//Startup, init history
+	if(pParam->isFirst){
+		
+		for(i = 0; i < pParam->dof; ++i){
+			
+			i_histXY = i * colhXY;
+			iirX = (iirFlt_t)X_n[i];
+			
+			for(j = i_histXY; j < i_histXY + colhXY; ++j){
+				pParam->histX[j] = iirX;
+				pParam->histY[j] = iirX;
+			}			
+		}
+		
+		pParam->isFirst = 0;
+		
+	}
 
   // Data filtering
   for(i = 0; i < pParam->dof; ++i){
 
-    //
-    // y_n = b_0 * x_n +
-    //       b_1 * x_n-1 + b_2 * x_n-2 + .... +
-    //       a_1 * y_n-1 + a_2 * y_n-2 +....
-    //
-    Y_n[i] = pParam->coeffB[0] * X_n[i];
+    i_histXY = i * colhXY;
+		iirX = (iirFlt_t)X_n[i];
 
-    for(j = 1; j < lenB; ++j)
-      Y_n[i] += pParam->coeffB[j] * pParam->histX[i * colhX + j - 1];
+    //
+    // a0*y_n + a_1 * y_n-1 + a_2 * y_n-2 + ....
+    //    = b_0 * x_n + b_1 * x_n-1 + b_2 * x_n-2 + .... +
+    //       
+    iirY = pParam->coeffB[0] * iirX;
 
-    for(j = 0; j < lenA; ++j)
-      Y_n[i] += pParam->coeffA[j] * pParam->histY[i * colhY + j];
+    for(j = 1; j < lenAB; ++j){
+      iirY += (pParam->coeffB[j] * pParam->histX[i_histXY + j - 1] - pParam->coeffA[j] * pParam->histY[i_histXY + j - 1]);
+		}
+
+    //iirY /= pParam->coeffA[0];  //a0 = 1 is assumed
 
     //Update the history value
-    for(j = 1; j < colhX; ++j)
-      pParam->histX[i * colhX + j] = pParam->histX[i * colhX + j - 1];
-    if(colhX > 0) pParam->histX[i * colhX] = X_n[i];
-
-    for(j = 1; j < colhY; ++j)
-      pParam->histY[i * colhY + j] = pParam->histY[i * colhY + j - 1];
-    if(colhY > 0) pParam->histY[i * colhY] = Y_n[i];
+    for(j = colhXY - 1; j > 0; --j){
+      pParam->histX[i_histXY + j] = pParam->histX[i_histXY + j - 1];
+      pParam->histY[i_histXY + j] = pParam->histY[i_histXY + j - 1];
+		}
+		pParam->histX[i_histXY] = iirX;
+		pParam->histY[i_histXY] = iirY;
+		
+		//filtered output
+		Y_n[i] = iirY;
   }
 }
 
@@ -128,13 +129,16 @@ void filterData(float *X_n, float *Y_n, iir_filter_param_t *pParam)
 void filterData_int16(int16_t *pData_in, int16_t *pData_out, iir_filter_param_t *pParam)
 {
 
-  float X_n[] = {pData_in[0], pData_in[1], pData_in[2]};
-  float Y_n[3];
+  float X_n[3];
+	float Y_n[3];
   int i;
 
+  for(i = 0; i < pParam->dof; ++i){
+    X_n[i] = pData_in[i];
+  }
   filterData(X_n, Y_n, pParam);
 
-  for(i = 0; i < 3; ++i){
+  for(i = 0; i < pParam->dof; ++i){
     pData_out[i] = (int16_t)(Y_n[i] + 0.5);
   }
 
