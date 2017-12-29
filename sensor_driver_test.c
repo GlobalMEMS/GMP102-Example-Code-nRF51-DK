@@ -216,17 +216,17 @@ int main(void)
   iirFlt_t coeffA_P[IIR_ORDER + 1] = {1.0, alpha_P - 1.0};
   iirFlt_t coeffB_P[IIR_ORDER + 1] = {alpha_P, 0.0};
 #elif IIR_ORDER == 2
-  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -1.89550185, 0.90069709};
-  iirFlt_t coeffB_P[IIR_ORDER + 1] = {0.00129881, 0.00259762, 0.00129881};
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -1.82269493, 0.83718165};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {0.00362168, 0.00724336, 0.00362168};
 #elif IIR_ORDER == 3
-  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -2.85212611, 2.71498408, -0.86248184};
-  iirFlt_t coeffB_P[IIR_ORDER + 1] = {4.70174477e-05, 1.41052343e-04, 1.41052343e-04, 4.70174477e-05};	
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -2.74883581, 2.52823122, -0.77763856};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {2.19606211e-04, 6.58818634e-04, 6.58818634e-04, 2.19606211e-04};	
 #elif IIR_ORDER == 4
-  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -3.80677094, 5.43876296, -3.45619783, 0.82423302};
-  iirFlt_t coeffB_P[IIR_ORDER + 1] = {1.70034519e-06, 6.80138078e-06, 1.02020712e-05, 6.80138078e-06, 1.70034519e-06};
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -3.67172909, 5.06799839, -3.11596693, 0.71991033};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {1.32937289e-05, 5.31749156e-05, 7.97623734e-05, 5.31749156e-05, 1.32937289e-05};
 #elif IIR_ORDER == 5
-  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -4.76069662, 9.07116978, -8.64727116, 4.12391041, -0.78711044};
-  iirFlt_t coeffB_P[IIR_ORDER + 1] = {6.14692560e-08, 3.07346280e-07, 6.14692560e-07, 6.14692560e-07, 3.07346280e-07, 6.14692560e-08};	
+  iirFlt_t coeffA_P[IIR_ORDER + 1] = {1., -4.5934214, 8.45511522, -7.79491832, 3.59890277, -0.66565254};
+  iirFlt_t coeffB_P[IIR_ORDER + 1] = {8.04235642e-07, 4.02117821e-06, 8.04235642e-06, 8.04235642e-06, 4.02117821e-06, 8.04235642e-07};	
 #endif
   iir_filter_param_t iir_P;	
   iir_P.dof = DOF_P;
