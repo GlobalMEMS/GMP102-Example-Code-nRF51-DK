@@ -183,6 +183,20 @@ s8 gmp102_soft_reset(void);
  */
 s8 gmp102_get_calibration_param(float* fCalibParam);
 
+/*!
+ * @brief Get gmp102 calibration parameters for fixed-point compensation
+ *        - Read calibration register AAh~BBh total 18 bytes
+ *        - Return 9 calibration parameters with fixed-point value and power parts
+ *
+ * @param s16Value[]: array of the value part of the calibration parameter
+ * @param u8Power[]: array of the power part of the calibration parameter
+ * 
+ * @return Result from bus communication function
+ * @retval -1 Bus communication error
+ * @retval -127 Error null bus
+ *
+ */
+s8 gmp102_get_calibration_param_fixed_point(s16 s16Value[], u8 u8Power[]);
 
 /*!
  * @brief gmp102 initialization
@@ -251,6 +265,21 @@ s8 gmp102_measure_P_T(s32* ps32P, s16* ps16T, s8 s8PWaitDrdy);
  *
  */
 void gmp102_compensation(s16 s16T, s32 s32P, float fParam[], float* pfT_Celsius, float* pfP_Pa);
+
+/*!
+ * @brief gmp102 temperature and pressure compensation, s64 fixed point operation
+ *
+ * @param s16T raw temperature in code
+ * @param s32P raw pressure in code
+ * @param s16Value[]: array of the value part of the calibration parameter
+ * @param u8Power[]: array of the power part of the calibration parameter
+ * @param *ps32T_Celsius calibrated temperature in 1/256*Celsius returned to caller
+ * @param *ps32P_Pa calibrated pressure in Pa returned to caller
+ * 
+ * @return None
+ *
+ */
+void gmp102_compensation_fixed_point_s64(s16 s16T, s32 s32P, s16 s16Value[], u8 u8Power[], s32* ps32T_Celsius, s32* ps32P_Pa);
 
 /*!
  * @brief gmp102 set pressure OSR

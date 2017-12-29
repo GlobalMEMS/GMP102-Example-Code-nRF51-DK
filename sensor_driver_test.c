@@ -146,8 +146,10 @@ int main(void)
   s8 s8Res; 
   bus_support_t gmp102_bus;
   float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fT_Celsius, fP_Pa, fAlt_m;
+  s16 s16Value[GMP102_CALIBRATION_PARAMETER_COUNT];
+  u8 u8Power[GMP102_CALIBRATION_PARAMETER_COUNT];
   s16 s16T;
-  s32 s32P;
+  s32 s32P, s32P_Pa, s32T_Celsius;
 
   //Config and initialize LFCLK
   init_lfclk();
@@ -170,6 +172,7 @@ int main(void)
 	
   /* GMP102 get the pressure calibration parameters */
   s8Res = gmp102_get_calibration_param(fCalibParam);
+  s8Res = gmp102_get_calibration_param_fixed_point(s16Value, u8Power);
 	
   /* GMP102 initialization setup */
   s8Res = gmp102_initialization();
@@ -193,8 +196,9 @@ int main(void)
 		
       /* Compensation */
       gmp102_compensation(s16T, s32P, fCalibParam, &fT_Celsius, &fP_Pa);
-      printf("P(Pa)=%d\r", (s32)fP_Pa);
-      printf("100*T(C)=%d\r", (s32)(fT_Celsius*100));
+      gmp102_compensation_fixed_point_s64(s16T, s32P, s16Value, u8Power, &s32T_Celsius, &s32P_Pa);
+      printf("P(Pa)=%d, %d\r", (s32)(fP_Pa + 0.5), s32P_Pa);
+      printf("100*T(C)=%d, %d\r", (s32)(fT_Celsius*100), (s32T_Celsius*100/256));
 
       /* Pressure Altitude */
       fAlt_m = pressure2Alt(fP_Pa);

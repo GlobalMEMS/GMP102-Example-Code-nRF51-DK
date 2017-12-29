@@ -53,7 +53,9 @@ static const float GMP102_CALIB_SCALE_FACTOR[] = {
   1.0E-12,
   1.0E-17,
   1.0E-21 };
- 
+
+static const s32 GMP102_POWER_SCALE[] = {1, 10, 100, 1000};
+
 /*!
  * @brief Read multiple data from the starting regsiter address
  *
@@ -197,6 +199,43 @@ s8 gmp102_get_calibration_param(float* fCalibParam){
     fCalibParam[i] = ((tmp << shift) >> (shift + 2)) * (pow10((u8DataBuf[2 * i + 1] & 0x03))) * GMP102_CALIB_SCALE_FACTOR[i];
   }
 	
+ EXIT:
+  return comRslt;
+}
+
+/*!
+ * @brief Get gmp102 calibration parameters for fixed-point compensation
+ *        - Read calibration register AAh~BBh total 18 bytes
+ *        - Return 9 calibration parameters with fixed-point value and power parts
+ *
+ * @param s16Value[]: array of the value part of the calibration parameter
+ * @param u8Power[]: array of the power part of the calibration parameter
+ * 
+ * @return Result from bus communication function
+ * @retval -1 Bus communication error
+ * @retval -127 Error null bus
+ *
+ */
+s8 gmp102_get_calibration_param_fixed_point(s16 s16Value[], u8 u8Power[]){
+
+  u8 u8DataBuf[GMP102_CALIBRATION_REGISTER_COUNT];
+  s8 comRslt;
+  s16 tmp, i;
+	
+  //read the calibration registers
+  comRslt = gmp102_burst_read(GMP102_REG_CALIB00, u8DataBuf, GMP102_CALIBRATION_REGISTER_COUNT);
+	
+  if(comRslt < GMP102_CALIBRATION_REGISTER_COUNT){
+    comRslt = -1;
+    goto EXIT;
+  }
+
+  for(i = 0; i < GMP102_CALIBRATION_PARAMETER_COUNT; ++i){
+    tmp = (u8DataBuf[2 * i] << 8) + u8DataBuf[2 * i + 1];
+    s16Value[i] = (tmp>>2);
+    u8Power[i] = (tmp & 0x03);
+  }
+
  EXIT:
   return comRslt;
 }
@@ -532,6 +571,92 @@ void gmp102_compensation(s16 s16T, s32 s32P, float fParam[], float* pfT_Celsius,
     fParam[7]*s16T*s32P*s32P + \
     fParam[8]*s16T*s16T*s32P*s32P;
 	
+}
+
+#define ShiftRight(v, s) (((v)+(1<<((s)-1)))>>(s))
+#define RoundDivide(v, d) (((v)+((d)/2))/(d))
+
+/*!
+ * @brief gmp102 temperature and pressure compensation, s64 fixed point operation
+ *
+ * @param s16T raw temperature in code
+ * @param s32P raw pressure in code
+ * @param s16Value[]: array of the value part of the calibration parameter
+ * @param u8Power[]: array of the power part of the calibration parameter
+ * @param *ps32T_Celsius calibrated temperature in 1/256*Celsius returned to caller
+ * @param *ps32P_Pa calibrated pressure in Pa returned to caller
+ * 
+ * @return None
+ *
+ */
+void gmp102_compensation_fixed_point_s64(s16 s16T, s32 s32P, s16 s16Value[], u8 u8Power[], s32* ps32T_Celsius, s32* ps32P_Pa){
+
+  s64 tmp, val, s64T, s64P;
+  s64T = s16T;
+  s64P = s32P;
+
+  //Temperature
+  *ps32T_Celsius = s16T;
+
+  //Pressure
+  val = 0;
+  //beta0
+  tmp = s16Value[0] * GMP102_POWER_SCALE[u8Power[0]] * 10;
+  val += tmp;
+  //beta1*T
+  tmp = s64T * s16Value[1];
+  tmp = tmp * GMP102_POWER_SCALE[u8Power[1]];
+  tmp = RoundDivide(tmp, 10000);
+  val += tmp;
+  //beta2*T*T
+  tmp = s64T * s16Value[2];
+  tmp = tmp * s64T;
+  tmp = tmp * GMP102_POWER_SCALE[u8Power[2]];
+  tmp = RoundDivide(tmp, 1000000000);
+  val += tmp;
+  //beta3*P
+  tmp = s64P * s16Value[3];
+  tmp = tmp * GMP102_POWER_SCALE[u8Power[3]];
+  tmp = RoundDivide(tmp, 10000);
+  val += tmp;
+  //beta4*P*T
+  tmp = s64P * s16Value[4];
+  tmp = tmp * s64T;
+  tmp = tmp * GMP102_POWER_SCALE[u8Power[4]];
+  tmp = RoundDivide(tmp, 1000000000);
+  val += tmp;
+  //beta5*P*T*T
+  tmp = s64P * s16Value[5];
+  tmp = tmp * s64T;
+  tmp = ShiftRight(tmp, 10) * s64T;
+  tmp = ShiftRight(tmp, 10) * GMP102_POWER_SCALE[u8Power[5]];
+  tmp = RoundDivide(tmp, 95367432);
+  val += tmp;
+  //beta6*P*P
+  tmp = s64P * s16Value[6];
+  tmp = tmp * s64P;
+  tmp = ShiftRight(tmp, 7) * GMP102_POWER_SCALE[u8Power[6]];
+  tmp = RoundDivide(tmp, 781250000);
+  val += tmp;
+  //beta7*P*P*T
+  tmp = s64P * s16Value[7];
+  tmp = tmp * s64P;
+  tmp = ShiftRight(tmp, 10) * s64T;
+  tmp = ShiftRight(tmp, 10) * GMP102_POWER_SCALE[u8Power[7]];
+  tmp = RoundDivide(tmp, 9536743164);
+  val += tmp;
+  //beta8*P*P*T*T
+  tmp = s64P * s16Value[8];
+  tmp = tmp * s64P;
+  tmp = ShiftRight(tmp, 9) * ShiftRight(s64T, 1);
+  tmp = ShiftRight(tmp, 12) * ShiftRight(s64T, 3);
+  tmp = ShiftRight(tmp, 7) * GMP102_POWER_SCALE[u8Power[8]];
+  tmp = RoundDivide(tmp, 23283064365);
+  val += tmp;
+
+  *ps32P_Pa = (s32)RoundDivide(val, 10);
+
+  return;
 }
 
 /*!
