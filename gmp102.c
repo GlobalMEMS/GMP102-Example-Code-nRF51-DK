@@ -660,6 +660,96 @@ void gmp102_compensation_fixed_point_s64(s16 s16T, s32 s32P, s16 s16Value[], u8 
 }
 
 /*!
+ * @brief gmp102 temperature and pressure compensation, s32 fixed point operation
+ *
+ * @param s16T raw temperature in code
+ * @param s32P raw pressure in code
+ * @param s16Value[]: array of the value part of the calibration parameter
+ * @param u8Power[]: array of the power part of the calibration parameter
+ * @param *ps32T_Celsius calibrated temperature in 1/256*Celsius returned to caller
+ * @param *ps32P_Pa calibrated pressure in Pa returned to caller
+ *
+ * @return None
+ *
+ */
+void gmp102_compensation_fixed_point_s32(s16 s16T, s32 s32P, s16 s16Value[], u8 u8Power[], s32* ps32T_Celsius, s32* ps32P_Pa){
+
+  s32 tmp, val, s32T, tmpT1, tmpT3, tmpP4, tmpP10, tmpP12, tmpP13;
+  s32T = s16T;
+
+  //some temporary variables
+  tmpT1 = ShiftRight(s32T, 1);
+  tmpT3 = ShiftRight(s32T, 3);
+  tmpP4 = ShiftRight(s32P, 4);
+  tmpP10 = ShiftRight(s32P, 10);
+  tmpP12 = ShiftRight(s32P, 12);
+  tmpP13 = ShiftRight(s32P, 13);
+
+  //Temperature
+  *ps32T_Celsius = s16T;
+
+  //Pressure
+  val = 0;
+  //beta0
+  tmp = s16Value[0] * GMP102_POWER_SCALE[u8Power[0]];
+  val += tmp;
+  //beta1*T
+  tmp = s32T * s16Value[1];
+  tmp = ShiftRight(tmp, 5) * GMP102_POWER_SCALE[u8Power[1]];
+  tmp = RoundDivide(tmp, 3125);
+  val += tmp;
+  //beta2*T*T
+  tmp = s32T * s16Value[2];
+  tmp = ShiftRight(tmp, 8) * tmpT1;
+  tmp = ShiftRight(tmp, 9) * GMP102_POWER_SCALE[u8Power[2]];
+  tmp = RoundDivide(tmp, 38147);
+  val += tmp;
+  //beta3*P
+  tmp = tmpP4 * s16Value[3];
+  tmp = ShiftRight(tmp, 5) * GMP102_POWER_SCALE[u8Power[3]];
+  tmp = RoundDivide(tmp, 195);
+  val += tmp;
+  //beta4*P*T
+  tmp = tmpP10 * s16Value[4];
+  tmp = ShiftRight(tmp, 13) * tmpT3;
+  tmp = tmp * GMP102_POWER_SCALE[u8Power[4]];
+  tmp = RoundDivide(tmp, 149);
+  val += tmp;
+  //beta5*P*T*T
+  tmp = tmpP13 * s16Value[5];
+  tmp = ShiftRight(tmp, 9) * s32T;
+  tmp = ShiftRight(tmp, 10) * s32T;
+  tmp = ShiftRight(tmp, 10) * GMP102_POWER_SCALE[u8Power[5]];
+  tmp = RoundDivide(tmp, 227);
+  val += tmp;
+  //beta6*P*P
+  tmp = tmpP10 * s16Value[6];
+  tmp = ShiftRight(tmp, 2) * tmpP12;
+  tmp = ShiftRight(tmp, 10) * GMP102_POWER_SCALE[u8Power[6]];
+  tmp = RoundDivide(tmp, 58);
+  val += tmp;
+  //beta7*P*P*T
+  tmp = tmpP10 * s16Value[7];
+  tmp = ShiftRight(tmp, 1) * tmpP13;
+  tmp = ShiftRight(tmp, 13) * s32T;
+  tmp = ShiftRight(tmp, 10) * GMP102_POWER_SCALE[u8Power[7]];
+  tmp = RoundDivide(tmp, 711);
+  val += tmp;
+  //beta8*P*P*T*T
+  tmp = tmpP12 * s16Value[8];
+  tmp = ShiftRight(tmp, 2) * tmpP12;
+  tmp = ShiftRight(tmp, 12) * tmpT1;
+  tmp = ShiftRight(tmp, 12) * tmpT1;
+  tmp = ShiftRight(tmp, 8) * GMP102_POWER_SCALE[u8Power[8]];
+  tmp = RoundDivide(tmp, 867);
+  val += tmp;
+
+  *ps32P_Pa = val;
+
+  return;
+}
+
+/*!
  * @brief gmp102 set pressure OSR
  *
  * @param osrP OSR to set
