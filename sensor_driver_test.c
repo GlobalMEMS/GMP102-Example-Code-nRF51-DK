@@ -143,13 +143,13 @@ void init_twi(nrf_twi_frequency_t clk){
 int main(void)
 {
 
-  s8 s8Res; 
+  s8 s8Res;
   bus_support_t gmp102_bus;
-  float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fT_Celsius, fP_Pa, fAlt_m;
+  float fCalibParam[GMP102_CALIBRATION_PARAMETER_COUNT], fP_Pa, fAlt_m;
   s16 s16Value[GMP102_CALIBRATION_PARAMETER_COUNT];
   u8 u8Power[GMP102_CALIBRATION_PARAMETER_COUNT];
+  s32 s32T, s32P;
   s16 s16T;
-  s32 s32P, s32P64_Pa, s32P32_Pa, s32T_Celsius;
 
   //Config and initialize LFCLK
   init_lfclk();
@@ -159,26 +159,28 @@ int main(void)
 
   //Config. and initialize TWI (I2C)
   init_twi(NRF_TWI_FREQ_400K);
-	
+
   /* GMP102 I2C bus setup */
   bus_init_I2C(&gmp102_bus, &m_app_twi, GMP102_7BIT_I2C_ADDR);  //Initialize I2C bus
   gmp102_bus_init(&gmp102_bus); //Initailze GMP102 bus to I2C
 
   /* GMP102 soft reset */
   s8Res = gmp102_soft_reset();
-	
+
   /* Wait 100ms for reset complete */
   DELAY_MS(100);
-	
+
   /* GMP102 get the pressure calibration parameters */
   s8Res = gmp102_get_calibration_param(fCalibParam);
-  s8Res = gmp102_get_calibration_param_fixed_point(s16Value, u8Power);
-	
+
   /* GMP102 initialization setup */
   s8Res = gmp102_initialization();
 
-  /* GMP102 set P OSR to 1024 */
+  /* GMP102 set P OSR to 1024 , choose other OSR to meet acutal requirement*/
   s8Res = gmp102_set_P_OSR(GMP102_P_OSR_1024);
+
+  /* Set to raw data output */
+  s8Res = gmp102_set_raw_data(1);
 
   /* set sea leve reference pressure */
   //If not set, use default 101325 Pa for pressure altitude calculation
@@ -186,20 +188,21 @@ int main(void)
 
   for(;;)
     {
-      /* Measure P */
+      /* Measure P by P-forced mode*/
       s8Res = gmp102_measure_P(&s32P);
       printf("P(code)=%d\r", s32P);
-		
-      /* Mesaure T */
-      s8Res = gmp102_measure_T(&s16T);
-      printf("T(code)=%d\r", s16T);
-		
-      /* Compensation */
-      gmp102_compensation(s16T, s32P, fCalibParam, &fT_Celsius, &fP_Pa);
-      gmp102_compensation_fixed_point_s64(s16T, s32P, s16Value, u8Power, &s32T_Celsius, &s32P64_Pa);
-      gmp102_compensation_fixed_point_s32(s16T, s32P, s16Value, u8Power, &s32T_Celsius, &s32P32_Pa);
-      printf("P(Pa)=%d, %d, %d\r", (s32)(fP_Pa + 0.5), s32P64_Pa, s32P32_Pa);
-      printf("100*T(C)=%d, %d\r", (s32)(fT_Celsius*100), (s32T_Celsius*100/256));
+
+      /* Mesaure T by T-forced mode*/
+      s8Res = gmp102_measure_T(&s32T);
+      printf("T(code)=%d\r", s32T);
+
+      /* P Compensation */
+      gmp102_compensation(s32T, s32P, fCalibParam, &fP_Pa);
+      printf("P(Pa)=%d\r", (s32)(fP_Pa + 0.5));
+
+      /* Calibrated T */
+      s8Res = gmp102_measure_T_Calibrated(&s16T);
+      printf("100*T(C)=%d\r", s16T*100/256);
 
       /* Pressure Altitude */
       fAlt_m = pressure2Alt(fP_Pa);
