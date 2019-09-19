@@ -353,7 +353,7 @@ s8 gmp102_measure_P(s32* ps32P){
 /*!
  * @brief gmp102 pressure compensation
  *
- * @param s16T raw temperature in code
+ * @param s32T raw temperature in code
  * @param s32P raw pressure in code
  * @param fParam[] pressure calibration parameters
  * @param *pfP_Pa calibrated pressure in Pa returned to caller
@@ -361,18 +361,18 @@ s8 gmp102_measure_P(s32* ps32P){
  * @return None
  *
  */
-void gmp102_compensation(s16 s16T, s32 s32P, float fParam[], float* pfP_Pa){
+void gmp102_compensation(s32 s32T, s32 s32P, float fParam[], float* pfP_Pa){
 
   *pfP_Pa = \
     fParam[0] + \
-    fParam[1]*s16T + \
-    fParam[2]*s16T*s16T + \
+    fParam[1]*s32T + \
+    fParam[2]*s32T*s32T + \
     fParam[3]*s32P + \
-    fParam[4]*s16T*s32P + \
-    fParam[5]*s16T*s16T*s32P + \
+    fParam[4]*s32T*s32P + \
+    fParam[5]*s32T*s32T*s32P + \
     fParam[6]*s32P*s32P + \
-    fParam[7]*s16T*s32P*s32P + \
-    fParam[8]*s16T*s16T*s32P*s32P;
+    fParam[7]*s32T*s32P*s32P + \
+    fParam[8]*s32T*s32T*s32P*s32P;
 
 }
 

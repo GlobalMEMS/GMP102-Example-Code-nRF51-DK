@@ -135,7 +135,7 @@ typedef enum {
 
 typedef enum {
   GMP102_EXTERNAL_T_SENSOR = 0x00,
-  GMP102_INTERNAL_T_SENSOR = 0x11,
+  GMP102_INTERNAL_T_SENSOR = 0x03,
 } GMP102_T_Sensor_Select_Type;
 
 /*!
